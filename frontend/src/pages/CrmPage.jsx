@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Users, Plus, Search, Edit2, Trash2, RefreshCw, ExternalLink,
   Phone, Mail, Building2, UserCheck, Target, TrendingUp, Network, Layers, Settings
@@ -58,14 +58,8 @@ export default function CrmPage() {
   const [meta, setMeta] = useState(null);
   const [stats, setStats] = useState({ total: 0, active: 0, leads: 0, deployed: 0 });
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      fetchCustomers();
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [search, statusFilter, page]);
-
-  const fetchCustomers = async () => {
+  // useCallback ensures fetchCustomers is stable and properly captures latest state
+  const fetchCustomers = useCallback(async () => {
     setIsLoading(true);
     try {
       const { data } = await api.get('/customers', {
@@ -79,14 +73,29 @@ export default function CrmPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [search, statusFilter, page]);
+
+  // fetchCustomers is in deps — re-runs only when search/statusFilter/page change
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      fetchCustomers();
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [fetchCustomers]);
 
   const deleteCustomer = async (c) => {
     if (!confirm(`Delete customer "${c.name}"? This will not remove linked resources.`)) return;
     try {
       await api.delete(`/customers/${c.id}`);
-      fetchCustomers();
       toast.success('Customer deleted');
+      if (page !== 1) {
+        // If on page > 1, reset to page 1 — this re-creates fetchCustomers via useCallback,
+        // which triggers the useEffect to fetch fresh data on page 1.
+        setPage(1);
+      } else {
+        // Already on page 1 — just re-fetch directly.
+        fetchCustomers();
+      }
     } catch {
       toast.error('Failed to delete customer');
     }
