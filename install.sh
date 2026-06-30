@@ -243,6 +243,16 @@ else
     fi
 fi
 
+echo "==> 2b. Configuring PHP-FPM Systemd Security (ReadWritePaths)"
+mkdir -p /etc/systemd/system/php8.4-fpm.service.d
+cat > /etc/systemd/system/php8.4-fpm.service.d/override.conf <<'EOF'
+[Service]
+# Whitelist panel directories for writing since ProtectSystem=full is default
+ReadWritePaths=/etc/letsencrypt /var/lib/letsencrypt /var/log/letsencrypt /etc/nginx /etc/bind /etc/postfix /etc/dovecot /etc/opendkim
+EOF
+systemctl daemon-reload 2>/dev/null || true
+systemctl restart php8.4-fpm.service 2>/dev/null || true
+
 echo "==> 3. Installing Composer"
 if ! command -v composer >/dev/null 2>&1; then
     curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
